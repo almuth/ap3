@@ -1,0 +1,89 @@
+package main
+
+import (
+    "log"
+    "strconv"
+
+    "github.com/ahadpos/go/internal/config"
+    "github.com/ahadpos/go/internal/handlers"
+    "github.com/ahadpos/go/internal/middleware"
+    "github.com/ahadpos/go/pkg/database"
+    "github.com/gin-gonic/gin"
+)
+
+func main() {
+    // Load configuration
+    cfg, err := config.Load("configs/config.yaml")
+    if err != nil {
+        log.Fatalf("Failed to load configuration: %v", err)
+    }
+
+    // Set Gin mode
+    gin.SetMode(cfg.Server.Mode)
+
+    // Connect to database
+    if err := database.Connect(cfg); err != nil {
+        log.Fatalf("Failed to connect to database: %v", err)
+    }
+    defer database.Close()
+
+    // Create router
+    router := gin.Default()
+
+    // Apply CORS middleware
+    if cfg.CORS.Enabled {
+        router.Use(middleware.CORSMiddleware(
+            cfg.CORS.AllowedOrigins,
+            cfg.CORS.AllowedMethods,
+            cfg.CORS.AllowedHeaders,
+            cfg.CORS.MaxAge,
+        ))
+    }
+
+    // Health check endpoint
+    router.GET("/health", func(c *gin.Context) {
+        c.JSON(200, gin.H{
+            "status":  "ok",
+            "message": "AhadPOS API is running",
+        })
+    })
+
+    // Initialize handlers
+    authHandler := handlers.NewAuthHandler(cfg)
+    barangHandler := handlers.NewBarangHandler()
+
+    // Public routes
+    public := router.Group("/api/v1")
+    {
+        public.POST("/auth/login", authHandler.Login)
+    }
+
+    // Protected routes
+    protected := router.Group("/api/v1")
+    protected.Use(middleware.AuthMiddleware())
+    {
+        // Auth routes
+        protected.GET("/auth/me", authHandler.GetCurrentUser)
+
+        // Product routes
+        protected.GET("/barang", barangHandler.GetBarangList)
+        protected.GET("/barang/:id", barangHandler.GetBarang)
+        protected.POST("/barang", barangHandler.CreateBarang)
+        protected.PUT("/barang/:id", barangHandler.UpdateBarang)
+        protected.DELETE("/barang/:id", barangHandler.DeleteBarang)
+    }
+
+    // Admin routes
+    admin := router.Group("/api/v1/admin")
+    admin.Use(middleware.AuthMiddleware(), middleware.RequireAdmin())
+    {
+        // Admin-specific routes can be added here
+    }
+
+    // Start server
+    log.Printf("Starting server on port %d...", cfg.Server.Port)
+    addr := ":" + strconv.Itoa(cfg.Server.Port)
+    if err := router.Run(addr); err != nil {
+        log.Fatalf("Failed to start server: %v", err)
+    }
+}
