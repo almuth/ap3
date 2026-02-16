@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  ahadpos-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ahadpos-api
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./ahadpos3.db:/app/ahadpos3.db
+      - ./logs:/app/logs
+      - ./configs/config.yaml:/app/configs/config.yaml:ro
+    environment:
+      - GIN_MODE=release
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ahadpos-network
+
+  # Optional: Redis for caching (can be enabled in production)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: ahadpos-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   networks:
+  #     - ahadpos-network
+
+networks:
+  ahadpos-network:
+    driver: bridge
+
+volumes:
+  redis-data:
