@@ -1,0 +1,579 @@
+openapi: 3.0.3
+info:
+  title: AhadPOS 3 API
+  description: REST API for AhadPOS 3 Point of Sale System
+  version: 1.0.0
+  contact:
+    name: AhadPOS Support
+    email: support@ahadpos.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.ahadpos.com
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Products
+    description: Product and inventory management
+  - name: Sales
+    description: Sales management
+  - name: Purchases
+    description: Purchase and order management
+  - name: Reports
+    description: Reporting and analytics
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API is running
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: AhadPOS API is running
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and receive JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  format: password
+                  example: admin123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user
+      description: Get information about the authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/barang:
+    get:
+      tags:
+        - Products
+      summary: List products
+      description: Get a paginated list of products with optional filters
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: kategori_id
+          in: query
+          description: Filter by category ID
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: Filter by status (0=inactive, 1=active)
+          required: false
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: search
+          in: query
+          description: Search by name or barcode
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of products
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Barang'
+                      meta:
+                        $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags:
+        - Products
+      summary: Create product
+      description: Create a new product
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBarangRequest'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Barang'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/barang/{id}:
+    get:
+      tags:
+        - Products
+      summary: Get product by ID
+      description: Get detailed information about a specific product
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Barang'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Products
+      summary: Update product
+      description: Update an existing product
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBarangRequest'
+      responses:
+        '200':
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Barang'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Products
+      summary: Delete product
+      description: Delete a product (soft delete)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Product deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /api/v1/auth/login
+
+  schemas:
+    SuccessResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          nullable: true
+          description: Response data
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        data:
+          type: object
+          nullable: true
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: VALIDATION_FAILED
+            message:
+              type: string
+              example: Validation failed
+            details:
+              type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT authentication token
+        user_id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: admin
+        role:
+          type: string
+          example: admin
+        name:
+          type: string
+          example: Administrator
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Administrator
+        username:
+          type: string
+          example: admin
+        email:
+          type: string
+          format: email
+          example: admin@ahadpos.com
+        role:
+          type: string
+          example: admin
+        status:
+          type: integer
+          description: 0=inactive, 1=active
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Barang:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        barcode:
+          type: string
+          example: "8991234567890"
+        nama:
+          type: string
+          example: "Sample Product"
+        struktur_id:
+          type: integer
+          nullable: true
+        kategori_id:
+          type: integer
+          nullable: true
+        satuan_id:
+          type: integer
+          example: 1
+        rak_id:
+          type: integer
+          nullable: true
+        restock_point:
+          type: integer
+          default: 0
+        restock_level:
+          type: integer
+          default: 0
+        restock_min:
+          type: integer
+          default: 0
+        variant_coefficient:
+          type: number
+          format: float
+          default: 1.0
+        status:
+          type: integer
+          description: 0=inactive, 1=active
+          example: 1
+        kategori:
+          $ref: '#/components/schemas/KategoriBarang'
+        satuan:
+          $ref: '#/components/schemas/SatuanBarang'
+        rak:
+          $ref: '#/components/schemas/RakBarang'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateBarangRequest:
+      type: object
+      required:
+        - barcode
+        - nama
+        - satuan_id
+      properties:
+        barcode:
+          type: string
+          maxLength: 30
+          example: "8991234567890"
+        nama:
+          type: string
+          maxLength: 100
+          example: "Sample Product"
+        struktur_id:
+          type: integer
+        kategori_id:
+          type: integer
+        satuan_id:
+          type: integer
+          example: 1
+        rak_id:
+          type: integer
+        restock_point:
+          type: integer
+          default: 0
+        restock_level:
+          type: integer
+          default: 0
+        restock_min:
+          type: integer
+          default: 0
+        variant_coefficient:
+          type: number
+          format: float
+          default: 1.0
+        status:
+          type: integer
+          enum: [0, 1]
+          default: 1
+
+    UpdateBarangRequest:
+      type: object
+      properties:
+        nama:
+          type: string
+          maxLength: 100
+        struktur_id:
+          type: integer
+        kategori_id:
+          type: integer
+        satuan_id:
+          type: integer
+        rak_id:
+          type: integer
+        restock_point:
+          type: integer
+        restock_level:
+          type: integer
+        restock_min:
+          type: integer
+        variant_coefficient:
+          type: number
+          format: float
+        status:
+          type: integer
+          enum: [0, 1]
+
+    KategoriBarang:
+      type: object
+      properties:
+        id:
+          type: integer
+        nama:
+          type: string
+          example: "Beverages"
+
+    SatuanBarang:
+      type: object
+      properties:
+        id:
+          type: integer
+        nama:
+          type: string
+          example: "PCS"
+
+    RakBarang:
+      type: object
+      properties:
+        id:
+          type: integer
+        nama:
+          type: string
+          example: "A1"
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          format: int64
+          example: 100
+        total_pages:
+          type: integer
+          example: 5
